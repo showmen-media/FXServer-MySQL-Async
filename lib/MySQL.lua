@@ -226,3 +226,39 @@ function MySQL.ready (callback)
         callback()
     end)
 end
+
+------------------------------
+
+local alias = {
+	query = 'fetchAll',
+	scalar = 'fetchScalar',
+	single = 'fetchSingle',
+	insert = 'insert',
+	update = 'execute',
+	transaction = 'transaction',
+	prepare = 'prepare'
+}
+
+local alias_mt = {
+	__index = function(self, key)
+		if alias[key] then
+            local aliased = alias[key]
+            MySQL[key] = setmetatable({}, {
+
+				__call = function(_, query, parameters, cb)
+                    return MySQL.Async[aliased](query, parameters, cb)
+				end,
+
+				__index = function(_, index)
+					assert(index == 'await', ('unable to index MySQL.%s.%s, expected .await'):format(key, index))
+					self[key].await = MySQL.Sync[aliased]
+					return self[key].await
+				end
+			})
+			alias[key] = nil
+			return self[key]
+		end
+	end
+}
+
+setmetatable(MySQL, alias_mt)
